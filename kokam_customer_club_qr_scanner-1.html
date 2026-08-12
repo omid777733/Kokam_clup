@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>باشگاه مشتریان کوکام آبادان</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f5f5f5;color:#222}
+header{background:#111;color:#fff;padding:18px;text-align:center}header h1{margin:0 0 6px;font-size:24px}header p{margin:0;color:#ffd54a}
+.wrap{max-width:1000px;margin:auto;padding:18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 18px #00000012;margin-bottom:16px}
+h2{margin-top:0}.btn{border:0;border-radius:12px;padding:12px 16px;font-size:15px;cursor:pointer;background:#111;color:white}.btn.gold{background:#e0a900}.btn.red{background:#c62828}
+input{width:100%;padding:13px;border:1px solid #ddd;border-radius:10px;margin:6px 0 12px;font-size:15px}
+.customer{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid #eee;border-radius:14px;padding:12px;margin:8px 0}
+.badge{background:#fff2b8;border-radius:20px;padding:7px 10px;font-weight:bold}
+.progress{height:12px;background:#eee;border-radius:20px;overflow:hidden;margin:12px 0}.bar{height:100%;background:#e0a900}
+#qr{display:flex;justify-content:center;margin:15px}.center{text-align:center}.muted{color:#777;font-size:13px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌯 باشگاه مشتریان کوکام آبادان</h1>
+  <p>۵ ساندویچ بخر، ساندویچ ششم مهمان ما 🎁</p>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <section class="card">
+      <h2>➕ ثبت مشتری</h2>
+      <input id="name" placeholder="نام مشتری">
+      <input id="phone" placeholder="شماره موبایل (اختیاری)">
+      <button class="btn gold" onclick="addCustomer()">ساخت مشتری و QR</button>
+      <p class="muted">برای هر مشتری یک کد و QR اختصاصی ساخته می‌شود.</p>
+    </section>
+
+    <section class="card">
+      <h2>🔎 ثبت خرید</h2>
+      <input id="code" placeholder="کد مشتری را وارد کنید (مثلاً K001)">
+      <button class="btn" onclick="purchase()">ثبت ۱ ساندویچ</button>
+      <button class="btn gold" onclick="startScanner()" style="margin-top:8px">📷 اسکن QR با دوربین</button>
+      <div id="scanner" style="display:none;margin-top:12px">
+        <div id="reader" style="width:100%;max-width:420px;margin:auto"></div>
+        <button class="btn red" onclick="stopScanner()" style="margin-top:8px">بستن دوربین</button>
+      </div>
+      <div id="message" class="muted" style="margin-top:12px"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>👥 مشتری‌ها</h2>
+    <div id="list"></div>
+  </section>
+
+  <section class="card center" id="selected" style="display:none">
+    <h2>🎫 کارت مشتری</h2>
+    <div id="selectedText"></div>
+    <div id="qr"></div>
+    <button class="btn" onclick="window.print()">چاپ کارت / QR</button>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+let customers = JSON.parse(localStorage.getItem('kokamCustomers') || '[]');
+
+function save(){localStorage.setItem('kokamCustomers',JSON.stringify(customers));render();}
+function addCustomer(){
+  const name=document.getElementById('name').value.trim();
+  const phone=document.getElementById('phone').value.trim();
+  if(!name){alert('نام مشتری را وارد کنید');return;}
+  const id='K'+String(customers.length+1).padStart(3,'0');
+  customers.push({id,name,phone,count:0,free:0});
+  document.getElementById('name').value='';document.getElementById('phone').value='';
+  save();showCustomer(id);
+}
+function purchase(){
+  const id=document.getElementById('code').value.trim().toUpperCase();
+  const c=customers.find(x=>x.id===id);
+  if(!c){document.getElementById('message').innerText='❌ مشتری پیدا نشد';return;}
+  if(c.count>=5){c.count=0;c.free=0;document.getElementById('message').innerText='🎁 ساندویچ رایگان قبلی باید تحویل و ثبت شود.';save();return;}
+  c.count++;
+  if(c.count===5){c.free=1;document.getElementById('message').innerText='🎉 ساندویچ ششم برای این مشتری رایگان شد!';}
+  else document.getElementById('message').innerText=`✅ ثبت شد؛ ${5-c.count} خرید دیگر تا جایزه.`;
+  save();showCustomer(id);
+}
+function redeem(id){
+  const c=customers.find(x=>x.id===id);
+  if(!c || c.free!==1)return;
+  c.count=0;c.free=0;save();showCustomer(id);
+}
+function showCustomer(id){
+  const c=customers.find(x=>x.id===id); if(!c)return;
+  document.getElementById('selected').style.display='block';
+  document.getElementById('selectedText').innerHTML=
+    `<b>${c.name}</b> — ${c.id}<br>${c.count}/5 ساندویچ<br>`+
+    (c.free?'<strong style="color:#c00">🎁 جایزه فعال است</strong>':'');
+  const qr=document.getElementById('qr');qr.innerHTML='';
+  new QRCode(qr,{text:'KOKAM-CUSTOMER:'+c.id,width:180,height:180});
+}
+
+let scanner = null;
+
+function startScanner(){
+  const box = document.getElementById('scanner');
+  box.style.display = 'block';
+  if(scanner) return;
+
+  scanner = new Html5Qrcode("reader");
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 250, height: 250 } },
+    (decodedText) => {
+      let id = decodedText.trim();
+      const prefix = 'KOKAM-CUSTOMER:';
+      if(id.startsWith(prefix)) id = id.substring(prefix.length).trim();
+      id = id.toUpperCase();
+
+      const c = customers.find(x => x.id === id);
+      if(!c){
+        document.getElementById('message').innerText = '❌ QR مشتری کوکام پیدا نشد';
+        return;
+      }
+
+      document.getElementById('code').value = c.id;
+      document.getElementById('message').innerText = '📷 QR شناسایی شد؛ در حال ثبت خرید...';
+      stopScanner();
+      purchase();
+    },
+    () => {}
+  ).catch(err => {
+    document.getElementById('message').innerText =
+      '❌ دسترسی دوربین ممکن نیست. اجازه Camera را به مرورگر بده و صفحه را با HTTPS یا localhost باز کن.';
+    box.style.display = 'none';
+    scanner = null;
+  });
+}
+
+function stopScanner(){
+  if(scanner){
+    scanner.stop().then(() => {
+      scanner.clear();
+      scanner = null;
+      document.getElementById('scanner').style.display = 'none';
+    }).catch(() => {
+      scanner = null;
+      document.getElementById('scanner').style.display = 'none';
+    });
+  } else {
+    document.getElementById('scanner').style.display = 'none';
+  }
+}
+
+function render(){
+  const list=document.getElementById('list');
+  if(!customers.length){list.innerHTML='<p class="muted">هنوز مشتری ثبت نشده است.</p>';return;}
+  list.innerHTML=customers.map(c=>{
+    const pct=c.count/5*100;
+    return `<div class="customer">
+      <div><b>${c.name}</b><div class="muted">${c.id}${c.phone?' • '+c.phone:''}</div>
+      <div class="progress"><div class="bar" style="width:${pct}%"></div></div>
+      <span class="badge">${c.count}/5</span>
+      ${c.free?'<span class="badge">🎁 رایگان</span>':''}</div>
+      <div>
+        <button class="btn" onclick="showCustomer('${c.id}')">QR</button>
+        ${c.free?`<button class="btn red" onclick="redeem('${c.id}')">تحویل جایزه</button>`:''}
+      </div>
+    </div>`
+  }).join('');
+}
+render();
+</script>
+</body>
+</html>
